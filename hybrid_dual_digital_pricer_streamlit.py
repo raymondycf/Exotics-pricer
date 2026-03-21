@@ -238,7 +238,7 @@ if 'results' in st.session_state:
     row2[1].metric("EUR/USD Implied Vol", f"{r['fx_vol']:.2f}%")
 
 # Updated button name + shows Vol Surface & Rates
-if st.button("Show Vol Surface and Rates curve", use_container_width=True):
+if st.button("Show Vol Surface, Rates curve and Forward", use_container_width=True):
     st.subheader("SPX Forward Factors")
     st.dataframe(pd.DataFrame(list(spx_fwd_dict.items()), columns=["Tenor", "Forward Factor"]))
     st.subheader("Interest Rates")
