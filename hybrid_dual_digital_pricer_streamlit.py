@@ -1,8 +1,21 @@
+# OVERALL DESCRIPTION:
+# Written by Raymond Yeung
+# This is a pricer for Hybrid Dual Digital Option
+# Methodology: SPX (equity index) and EUR/USD (FX rate) are modeled as two correlated Geometric Brownian Motions (GBMs).
+# This is equivalent to a multivariate Black-Scholes model with constant correlation (Copula approach).
+# Pricing is performed via Monte Carlo Simulation with 100,000 paths.
+# The app includes user inputs (tenor, strikes, direction, correlation), runs the pricer, computes Greeks via finite differences,
+# displays compact results (Pricing Results section moved above Market Data Used), and allows viewing of full market data surfaces.
+# Deployed into a web app with Streamlit and Github
+
 import streamlit as st
 import numpy as np
 import pandas as pd
 
 # ====================== EXACT DATA FROM YOUR EXCEL FILES ======================
+# DESCRIPTION: This section contains ALL market data constants exactly as extracted from the source files.
+# These are used for forward, interest rates, and full volatility surfaces pricing
+
 SPX_SPOT = 6632.19
 FX_SPOT = 1.1487
 N_PATHS = 100000
@@ -40,6 +53,9 @@ fx_vol_dict = {
 
 
 # ====================== HELPERS ======================
+# DESCRIPTION: These helper functions perform linear interpolation on the market data surfaces.
+# They convert tenor strings to months and look up / interpolate forwards, rates, and implied vols for any strike.
+# This allows the pricer to work for any tenor the user selects from the sidebar.
 def get_months(k: str) -> int:
     if k.endswith('M'): return int(k[:-1])
     if k.endswith('Y'): return int(k[:-1]) * 12
@@ -69,6 +85,11 @@ def get_vol(tenor: str, strike_decimal: float, is_spx: bool = True) -> float:
 
 
 # ====================== MC PRICER ======================
+# DESCRIPTION: This is the core Monte Carlo pricing engine (100,000 paths).
+# It simulates two correlated GBM paths for SPX and EUR/USD at maturity.
+# Uses Cholesky decomposition (via independent normals + correlation) to enforce constant correlation.
+# Checks whether BOTH underlyings finish in-the-money for their respective digital directions.
+# Returns the discounted probability × 100 (i.e. % of notional payout).
 def mc_price(spx_s0, fx_s0, spx_k, fx_k, spx_dir, fx_dir, rho, T, usd_r,
              spx_fwd, fx_fwd, spx_vol, fx_vol, z1, z_indep):
     spx_sigT = spx_vol * np.sqrt(T)
@@ -88,6 +109,10 @@ def mc_price(spx_s0, fx_s0, spx_k, fx_k, spx_dir, fx_dir, rho, T, usd_r,
 
 
 # ====================== STREAMLIT UI ======================
+# DESCRIPTION: This entire block builds the web interface.
+# Includes custom dark theme CSS (with extra compact metric boxes as requested),
+# title, sidebar inputs, centered "Price Option" button, and conditional result display.
+# Pricing Results section is deliberately placed ABOVE Market Data Used.
 st.set_page_config(page_title="Hybrid Dual Digital Pricer", layout="wide")
 # Dark theme + centered metrics + no top blank space + MORE COMPACT METRIC BOXES
 st.markdown("""
@@ -238,7 +263,7 @@ if 'results' in st.session_state:
     row2[1].metric("EUR/USD Implied Vol", f"{r['fx_vol']:.2f}%")
 
 # Updated button name + shows Vol Surface & Rates
-if st.button("Show Vol Surface, Rates curve and Forward", use_container_width=True):
+if st.button("Show Vol Surface and Rates curve", use_container_width=True):
     st.subheader("SPX Forward Factors")
     st.dataframe(pd.DataFrame(list(spx_fwd_dict.items()), columns=["Tenor", "Forward Factor"]))
     st.subheader("Interest Rates")
