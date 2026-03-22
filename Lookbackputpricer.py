@@ -196,8 +196,6 @@ with col2:
         step=0.01,
         format="%.2f"
     )
-    strike_pct = strike_input / 100.0
-    )
     strike_pct = strike_input / 100.0   # keep internal variable as decimal (0.90 etc.)
 
 if st.button("Price", type="primary"):
