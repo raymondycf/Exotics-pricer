@@ -189,7 +189,7 @@ with col1:
     tenor = st.selectbox("Tenor", options=expiries, index=5)
 with col2:
     strike_input = st.number_input(
-        "Strike (%)",
+        "SPX Strike (%)",
         min_value=80.0,
         max_value=100.0,
         value=90.0,
