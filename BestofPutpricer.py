@@ -404,5 +404,3 @@ if st.button("Show Vol Surface and Rates curve"):
 if st.button("Show Full Source Code"):
     with open(__file__, "r", encoding="utf-8") as f:
         st.code(f.read(), language="python")
-
-st.caption("100,000 paths • Seeded • Quanto-adjusted GBM • Linear interpolation • All greeks via finite difference")
