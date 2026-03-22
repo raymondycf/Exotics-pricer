@@ -189,12 +189,14 @@ with col1:
     tenor = st.selectbox("Tenor", options=expiries, index=5)
 with col2:
     strike_input = st.number_input(
-        "Strike (%)",
-        min_value=80.0,
-        max_value=100.0,
-        value=90.0,
+        "SPX Strike (%)", 
+        min_value=80.0, 
+        max_value=100.0, 
+        value=90.0, 
         step=0.01,
         format="%.2f"
+    )
+    strike_pct = strike_input / 100.0
     )
     strike_pct = strike_input / 100.0   # keep internal variable as decimal (0.90 etc.)
 
