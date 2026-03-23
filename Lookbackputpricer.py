@@ -1,7 +1,7 @@
 # ====================== CONFIG & THEME ======================
 # This is created by Raymond Yeung
 # This is a Lookback Option (Floating Strike) Pricer
-# Methodology: Dupire's Local Volatility Model with 100k path MC Simulation
+# Methodology: Simplified Local Volatility Model with 100k path MC Simulation
 
 
 import streamlit as st
@@ -105,7 +105,7 @@ def get_local_vol(moneyness, tenor_months: float, bump: float = 0.0):
     return np.maximum(vol + bump, 0.01)
 
 # ====================== 3. MONTE CARLO PRICER ======================
-# Core pricing engine: GBM Monte Carlo simulation with FULL path-dependent Dupire local volatility.
+# Core pricing engine: GBM Monte Carlo simulation with FULL path-dependent simplified local volatility.
 # At every weekly step it looks up σ_loc(S_t, t) from the entire volatility surface provided.
 # Uses fixed reference_spot = 6632.19 for moneyness and normalizes price to % of notional.
 # This is the exact implementation of "GBM with Local Volatility modelling" using full surface.
@@ -182,7 +182,7 @@ def compute_price_and_greeks(strike_pct: float, tenor: str, n_paths: int):
 # Monte Carlo paths are hidden (100,000 inside the pricer).
 
 st.title("Lookback Put Option Pricer (Floating strike)")
-st.markdown("Dupire's Local Volatility Model by Raymond Yeung")
+st.markdown("Simplified Local Volatility Model by Raymond Yeung")
 
 col1, col2 = st.columns(2)
 with col1:
@@ -199,7 +199,7 @@ with col2:
     strike_pct = strike_input / 100.0   # keep internal variable as decimal (0.90 etc.)
 
 if st.button("Price", type="primary"):
-    with st.spinner("Running 100k-path simulation with full Dupire local vol..."):
+    with st.spinner("Running 100k-path simulation with simplified local vol..."):
         price, delta, vega, gamma = compute_price_and_greeks(strike_pct, tenor, 100000)
 
         c1, c2, c3, c4 = st.columns(4)
