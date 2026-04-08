@@ -285,7 +285,7 @@ def compute_dupire_local_vol(ref_spot, vol_mat=None):
 
 
 # ====================== HESTON CALIBRATION + LEVERAGE ======================
-@st.cache_data
+@st.cache_resource
 def calibrate_heston_and_leverage(ref_spot, n_calib_paths=50000, n_calib_steps=130):
     atm_idx = 4
     atm_vols = st.session_state.vol_matrix_clean[:, atm_idx]
