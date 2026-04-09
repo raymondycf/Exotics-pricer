@@ -359,7 +359,7 @@ def calibrate_heston_and_leverage(ref_spot, n_calib_paths=50000, n_calib_steps=1
     return heston_params, L_func
 
 
-def build_conditional_leverage(heston_params, ref_spot, n_paths=70000, n_steps=180,
+def build_conditional_leverage(heston_params, ref_spot, n_paths=60000, n_steps=160,
                                progress_bar=None, status_text=None):
     local_vol_func = compute_dupire_local_vol(ref_spot)
     v0, kappa, theta, xi, rho = heston_params
@@ -373,7 +373,8 @@ def build_conditional_leverage(heston_params, ref_spot, n_paths=70000, n_steps=1
     S = np.full(n_paths, ref_spot, dtype=np.float64)
     V = np.full(n_paths, v0, dtype=np.float64)
 
-    sample_times = np.linspace(0.08, T_max, 10)
+    # More time samples + denser early times (most important for 1Y)
+    sample_times = np.concatenate(([0.05, 0.10], np.linspace(0.15, T_max, 18)))
     step_indices = (sample_times / dt).astype(int).clip(0, n_steps - 1)
 
     cond_ev = {}
@@ -395,17 +396,27 @@ def build_conditional_leverage(heston_params, ref_spot, n_paths=70000, n_steps=1
 
         if step in step_indices:
             t = (step + 1) * dt
-            bins = np.percentile(S, np.linspace(0, 100, 55))
+            # More bins + minimum 12 points per bin + light smoothing
+            bins = np.percentile(S, np.linspace(0, 100, 91))  # 90 bins
             centers = (bins[:-1] + bins[1:]) / 2
             mean_V = []
             for i in range(len(bins) - 1):
                 mask = (S >= bins[i]) & (S < bins[i + 1])
-                mean_V.append(np.mean(V[mask]) if np.sum(mask) > 8 else theta)
+                if np.sum(mask) > 12:
+                    mean_V.append(np.mean(V[mask]))
+                else:
+                    mean_V.append(theta)
             mean_V = np.array(mean_V)
-            f_ev = interp1d(centers, mean_V, kind='linear', fill_value="extrapolate", bounds_error=False)
+
+            # Light smoothing on E[V|S] curve (very cheap, reduces noise a lot)
+            mean_V = gaussian_filter(mean_V, sigma=1.2)
+
+            # Better interpolation: quadratic
+            f_ev = interp1d(centers, mean_V, kind='quadratic',
+                            fill_value="extrapolate", bounds_error=False)
             cond_ev[t] = f_ev
 
-        if progress_bar is not None and step % max(1, n_steps // 20) == 0:
+        if progress_bar is not None and step % max(1, n_steps // 15) == 0:
             percent = int((step + 1) / n_steps * 100)
             progress_bar.progress(percent)
             if status_text is not None:
