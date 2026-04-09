@@ -9,6 +9,7 @@ import time
 from scipy.interpolate import interp1d
 import streamlit.components.v1 as components
 import inspect
+import hashlib
 
 # ====================== PICKLEABLE CLASSES ======================
 class LocalVolFunc:
@@ -144,6 +145,37 @@ realized_vol = np.sqrt(np.mean(log_returns ** 2) * 252)
 ref_spot = float(spx_prices[-1])
 
 st.success("Market data loaded successfully!")
+# ====================== FORCE RESET ON NEW FILE UPLOAD ======================
+# Create a unique hash of the uploaded file so we detect any change
+file_bytes = uploaded_file.getvalue()  # safe because it's a BytesIO object
+current_file_hash = hashlib.md5(file_bytes).hexdigest()
+
+if ("last_file_hash" not in st.session_state or 
+    st.session_state.last_file_hash != current_file_hash):
+    
+    st.info("🔄 New market data file detected — clearing old calibration & caches...")
+    
+    # Clear all relevant session state
+    keys_to_reset = [
+        'heston_params', 'L_func', 'vol_matrix_clean',
+        'original_heston_params', 'original_L_func'
+    ]
+    for key in keys_to_reset:
+        if key in st.session_state:
+            del st.session_state[key]
+    
+    # Clear ALL cached functions (local vol, call surface, calibration, etc.)
+    st.cache_data.clear()
+    st.cache_resource.clear()
+    
+    # Remember this file so we don't reset again on the next rerun
+    st.session_state.last_file_hash = current_file_hash
+    
+    st.rerun()  # Important: forces the whole script to re-execute with the new file
+
+
+
+
 st.info(f"Loaded {len(spx_prices)} prices | Current SPX: {ref_spot:.2f} | Vol surface {len(T_vol)}×{len(K_vol)}")
 
 
