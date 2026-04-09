@@ -318,7 +318,7 @@ def compute_dupire_local_vol(ref_spot, vol_mat=None):
 
 # ====================== HESTON CALIBRATION + LEVERAGE ======================
 @st.cache_resource
-def calibrate_heston_and_leverage(ref_spot, n_calib_paths=50000, n_calib_steps=130):
+def calibrate_heston_and_leverage(ref_spot, n_calib_paths=35000, n_calib_steps=110):
     atm_idx = 4
     atm_vols = st.session_state.vol_matrix_clean[:, atm_idx]
     atm_vars = atm_vols ** 2
@@ -627,7 +627,8 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
         L_func = st.session_state.L_func if mode == "LSV" else None
 
         base_raw = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier, mode,
-                                   heston_params, local_vol_func=local_vol_func, L_func=L_func, seed=42)
+                                   heston_params, local_vol_func=local_vol_func, L_func=L_func,
+                                   n_paths=90000, n_steps=350, seed=42)
         base_pct = (base_raw / ref_spot_ui) * 100
 
         st.success(f"**Option Price: {base_pct:.4f}%** of notional")
@@ -636,7 +637,7 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
         # ====================== GREEKS (FIXED FOR PUTS - POINT 1) ======================
         # Use absolute raw prices + more paths + smaller bump + common random seed logic
         seed = 42
-        n_greeks = 150000
+        n_greeks = 90000
         h = 0.005
 
         # =========
