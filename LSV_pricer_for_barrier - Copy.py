@@ -359,7 +359,7 @@ def calibrate_heston_and_leverage(ref_spot, n_calib_paths=35000, n_calib_steps=1
     return heston_params, L_func
 
 
-def build_conditional_leverage(heston_params, ref_spot, n_paths=60000, n_steps=160,
+def build_conditional_leverage(heston_params, ref_spot, n_paths=120000, n_steps=200,
                                progress_bar=None, status_text=None):
     local_vol_func = compute_dupire_local_vol(ref_spot)
     v0, kappa, theta, xi, rho = heston_params
@@ -397,7 +397,7 @@ def build_conditional_leverage(heston_params, ref_spot, n_paths=60000, n_steps=1
         if step in step_indices:
             t = (step + 1) * dt
             # More bins + minimum 12 points per bin + light smoothing
-            bins = np.percentile(S, np.linspace(0, 100, 91))  # 90 bins
+            bins = np.percentile(S, np.linspace(0, 100, 121))  # bins
             centers = (bins[:-1] + bins[1:]) / 2
             mean_V = []
             for i in range(len(bins) - 1):
