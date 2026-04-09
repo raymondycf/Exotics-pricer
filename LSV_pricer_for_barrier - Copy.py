@@ -628,7 +628,7 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
 
         base_raw = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier, mode,
                                    heston_params, local_vol_func=local_vol_func, L_func=L_func,
-                                   n_paths=90000, n_steps=350, seed=42)
+                                   n_paths=150000, n_steps=350, seed=42)
         base_pct = (base_raw / ref_spot_ui) * 100
 
         st.success(f"**Option Price: {base_pct:.4f}%** of notional")
@@ -637,7 +637,7 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
         # ====================== GREEKS (FIXED FOR PUTS - POINT 1) ======================
         # Use absolute raw prices + more paths + smaller bump + common random seed logic
         seed = 42
-        n_greeks = 90000
+        n_greeks = 150000
         h = 0.005
 
         # =========
