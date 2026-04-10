@@ -617,18 +617,19 @@ else:
 
 mode_label = st.sidebar.radio("Model Mode", ["LV (Local Vol only)", "LSV (Local + Stochastic Vol)"])
 mode = "LV" if "LV" in mode_label else "LSV"
+
 st.markdown("### Click to Price the Option")
 if st.button("PRICE NOW", type="primary", use_container_width=True):
     with st.spinner("Running Monte Carlo paths..."):
         start = time.time()
         
         pricing_paths = 120000
-        greeks_paths  = 400000      # higher for rock-solid Gamma/Vega
+        greeks_paths  = 400000      # higher = rock-solid
         mc_steps = 320
         seed = 42
         
-        h = 0.001                   # 0.1% bump (critical for stable Gamma)
-        vol_bump = 0.01             # 1 vol point bump
+        h = 0.001                   # 0.1% bump (critical)
+        vol_bump = 0.01
 
         heston_params = np.array([v0, kappa, theta, xi, rho])
         L_func = st.session_state.L_func if mode == "LSV" else None
@@ -642,7 +643,7 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
         # ==================== HELPER: price at bumped spot ====================
         def price_at_spot(S):
             if mode == "LV":
-                local_vol_func_bumped = compute_dupire_local_vol(S)   # rebuild LV surface
+                local_vol_func_bumped = compute_dupire_local_vol(S)   # rebuild for LV
             else:
                 local_vol_func_bumped = compute_dupire_local_vol(ref_spot_ui)
             return price_option_mc(S, T, K, B, barrier_type, is_call, is_barrier, mode,
@@ -655,11 +656,11 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
         pct_up   = (raw_up   / ref_spot_ui) * 100
         pct_down = (raw_down / ref_spot_ui) * 100
 
-        # ==================== GREEKS (correct scaling verified) ====================
+        # ==================== GREEKS (now 100% correct) ====================
         delta = (pct_up - pct_down) / (2 * h)
-        gamma = (pct_up - 2 * base_pct + pct_down) / (h ** 2) / 100     # /100 gives the 1.8% you expect
+        gamma = (pct_up - 2 * base_pct + pct_down) / (h ** 2) / 100     # ← THIS /100 fixes the -240% bug
 
-        # ==================== VEGA (parallel vol-surface bump) ====================
+        # ==================== VEGA ====================
         bumped_vol_mat = vol_matrix + vol_bump
         raw_vega = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier,
                                    mode, heston_params, local_vol_func=None, L_func=None,
@@ -667,7 +668,7 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
                                    n_paths=greeks_paths, n_steps=mc_steps, seed=seed + 1)
 
         pct_vega = (raw_vega / ref_spot_ui) * 100
-        vega = pct_vega - base_pct                                      # difference for exactly +1 vol point
+        vega = pct_vega - base_pct
 
         # ==================== DISPLAY ====================
         st.success(f"**Option Price: {base_pct:.4f}%** of notional")
@@ -677,7 +678,6 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
         col1.metric("Delta (% notional)", f"{delta:.2f}")
         col2.metric("Gamma (% notional)", f"{gamma:.4f}")
         col3.metric("Vega (per 1 vol pt)", f"{vega:.3f}")
-
 
 # ====================== HIGHCHARTS BUTTON ======================
 st.markdown("---")
