@@ -621,78 +621,50 @@ st.markdown("### Click to Price the Option")
 if st.button("PRICE NOW", type="primary", use_container_width=True):
     with st.spinner("Running Monte Carlo paths..."):
         start = time.time()
-        
+       
         pricing_paths = 120000
-        greeks_paths  = 400000      # higher = rock-solid
+        greeks_paths = 400000
         mc_steps = 320
         seed = 42
-        
-        h = 0.001                   # 0.1% bump (critical)
-        vol_bump = 0.01
-
+       
         heston_params = np.array([v0, kappa, theta, xi, rho])
         L_func = st.session_state.L_func if mode == "LSV" else None
 
-# ==================== BASE PRICE ====================
-        base_raw = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier, mode,
-                                   heston_params, local_vol_func=None, L_func=L_func,
-                                   n_paths=pricing_paths, n_steps=mc_steps, seed=seed)
-        base_pct = (base_raw / ref_spot_ui) * 100
+        # === REUSE THE EXACT local_vol_func THAT WAS CREATED DURING CALIBRATION ===
+        local_vol_func = st.session_state.L_func.local_vol_func
 
-        # ==================== HELPER: price at bumped spot ====================
-        def price_at_spot(S):
-            if mode == "LV":
-                local_vol_func_bumped = compute_dupire_local_vol(S)   # rebuild for LV
-            else:
-                local_vol_func_bumped = compute_dupire_local_vol(ref_spot_ui)
-            return price_option_mc(S, T, K, B, barrier_type, is_call, is_barrier, mode,
-                                   heston_params, local_vol_func=local_vol_func_bumped, L_func=L_func,
-                                   n_paths=greeks_paths, n_steps=mc_steps, seed=seed)
-
-       # ====================== GREEKS  ======================
-        # This is 99% identical to the block that worked in your old code.
-        # Only changes: higher paths + cleaned-up structure + Vega now correct in LSV mode.
-
-        seed = 42
-        n_greeks = 250000      # increased from your old 150k → much more stable (no more sign flips)
-        h = 0.005              # exactly the same bump you used before
-
-        # Use THE SAME local_vol_func for base + up + down (exactly as in your old code)
+        # ==================== PRICE + GREEKS ====================
         raw_base = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier,
                                    mode, heston_params, local_vol_func=local_vol_func,
-                                   L_func=L_func, n_paths=n_greeks, seed=seed)
+                                   L_func=L_func, n_paths=greeks_paths, n_steps=mc_steps, seed=seed)
+
+        raw_up = price_option_mc(ref_spot_ui * 1.005, T, K, B, barrier_type, is_call, is_barrier,
+                                 mode, heston_params, local_vol_func=local_vol_func,
+                                 L_func=L_func, n_paths=greeks_paths, n_steps=mc_steps, seed=seed)
+
+        raw_down = price_option_mc(ref_spot_ui * 0.995, T, K, B, barrier_type, is_call, is_barrier,
+                                   mode, heston_params, local_vol_func=local_vol_func,
+                                   L_func=L_func, n_paths=greeks_paths, n_steps=mc_steps, seed=seed)
 
         base_pct = (raw_base / ref_spot_ui) * 100
-
-        raw_up = price_option_mc(ref_spot_ui * (1 + h), T, K, B, barrier_type, is_call, is_barrier,
-                                 mode, heston_params, local_vol_func=local_vol_func,
-                                 L_func=L_func, n_paths=n_greeks, seed=seed)   # ← same seed + same local vol func
-
-        raw_down = price_option_mc(ref_spot_ui * (1 - h), T, K, B, barrier_type, is_call, is_barrier,
-                                   mode, heston_params, local_vol_func=local_vol_func,
-                                   L_func=L_func, n_paths=n_greeks, seed=seed)   # ← same seed + same local vol func
-
-        pct_up   = (raw_up   / ref_spot_ui) * 100
+        pct_up = (raw_up / ref_spot_ui) * 100
         pct_down = (raw_down / ref_spot_ui) * 100
 
-        # Your exact original gamma formula (this is what gave you good numbers before)
-        delta = (pct_up - pct_down) / (2 * h)
-        gamma = (pct_up - 2 * base_pct + pct_down) / (h ** 2) / 100
+        delta = (pct_up - pct_down) / (2 * 0.005)
+        gamma = (pct_up - 2 * base_pct + pct_down) / (0.005 ** 2) / 100
 
-        # Vega – now correctly uses LSV when you are in LSV mode (your old code forced pure LV)
+        # Vega
         bumped_vol_mat = vol_matrix + 0.02
         raw_vega = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier,
                                    mode, heston_params, local_vol_func=None, L_func=L_func,
-                                   vol_mat=bumped_vol_mat,
-                                   n_paths=n_greeks, seed=seed + 1)
-
+                                   vol_mat=bumped_vol_mat, n_paths=greeks_paths,
+                                   n_steps=mc_steps, seed=seed + 1)
         pct_vega = (raw_vega / ref_spot_ui) * 100
         vega = (pct_vega - base_pct) / 2.0
 
         # ==================== DISPLAY ====================
         st.success(f"**Option Price: {base_pct:.4f}%** of notional")
         st.info(f"✅ Computed in {time.time() - start:.2f} s")
-
         col1, col2, col3 = st.columns(3)
         col1.metric("Delta (% notional)", f"{delta:.2f}")
         col2.metric("Gamma (% notional)", f"{gamma:.4f}")
