@@ -633,7 +633,7 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
         heston_params = np.array([v0, kappa, theta, xi, rho])
         L_func = st.session_state.L_func if mode == "LSV" else None
 
-        # ==================== BASE PRICE ====================
+# ==================== BASE PRICE ====================
         base_raw = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier, mode,
                                    heston_params, local_vol_func=None, L_func=L_func,
                                    n_paths=pricing_paths, n_steps=mc_steps, seed=seed)
@@ -649,33 +649,38 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
                                    heston_params, local_vol_func=local_vol_func_bumped, L_func=L_func,
                                    n_paths=greeks_paths, n_steps=mc_steps, seed=seed)
 
-        raw_up   = price_at_spot(ref_spot_ui * (1 + h))
-        raw_down = price_at_spot(ref_spot_ui * (1 - h))
+        # ==================== GREEKS (FIXED) ====================
+        h_delta = 0.001          # 0.1% for Delta (stable)
+        h_gamma = 0.005          # 0.5% for Gamma (much more stable)
 
-        pct_up   = (raw_up   / ref_spot_ui) * 100
-        pct_down = (raw_down / ref_spot_ui) * 100
+        # Delta bump
+        raw_up_delta   = price_at_spot(ref_spot_ui * (1 + h_delta))
+        raw_down_delta = price_at_spot(ref_spot_ui * (1 - h_delta))
+        pct_up_delta   = (raw_up_delta   / ref_spot_ui) * 100
+        pct_down_delta = (raw_down_delta / ref_spot_ui) * 100
+        delta = (pct_up_delta - pct_down_delta) / (2 * h_delta)
 
-        # ==================== GREEKS (now 100% correct) ====================
-        delta = (pct_up - pct_down) / (2 * h)
-        gamma = (pct_up - 2 * base_pct + pct_down) / (h ** 2) / 100     
+        # Gamma bump (larger h + correct scaling)
+        raw_up_gamma   = price_at_spot(ref_spot_ui * (1 + h_gamma))
+        raw_down_gamma = price_at_spot(ref_spot_ui * (1 - h_gamma))
+        diff = raw_up_gamma - 2 * base_raw + raw_down_gamma
+        gamma = diff / (h_gamma * ref_spot_ui) ** 2 * ref_spot_ui   # → Gamma per 1% move (standard trader convention)
 
-        # ==================== VEGA ====================
+        # ==================== VEGA (fixed for LSV) ====================
         bumped_vol_mat = vol_matrix + vol_bump
         raw_vega = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier,
-                                   mode, heston_params, local_vol_func=None, L_func=None,
+                                   mode, heston_params, local_vol_func=None, L_func=L_func,
                                    vol_mat=bumped_vol_mat,
                                    n_paths=greeks_paths, n_steps=mc_steps, seed=seed + 1)
-
         pct_vega = (raw_vega / ref_spot_ui) * 100
         vega = pct_vega - base_pct
 
         # ==================== DISPLAY ====================
         st.success(f"**Option Price: {base_pct:.4f}%** of notional")
         st.info(f"✅ Computed in {time.time() - start:.2f} s")
-
         col1, col2, col3 = st.columns(3)
         col1.metric("Delta (% notional)", f"{delta:.2f}")
-        col2.metric("Gamma (% notional)", f"{gamma:.4f}")
+        col2.metric("Gamma (per 1% move)", f"{gamma:.4f}")
         col3.metric("Vega (per 1 vol pt)", f"{vega:.3f}")
 
 # ====================== HIGHCHARTS BUTTON ======================
