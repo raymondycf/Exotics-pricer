@@ -622,55 +622,52 @@ st.markdown("### Click to Price the Option")
 if st.button("PRICE NOW", type="primary", use_container_width=True):
     with st.spinner("Running Monte Carlo paths..."):
         start = time.time()
+        
+        # ====================== CONSISTENT MC SETTINGS FOR PRICE + GREEKS ======================
+        mc_paths = 100000          # <── you can change this later
+        mc_steps = 320             # <── balanced for speed & stability on your CPU
+        seed     = 42
+        h        = 0.005           # 0.5% spot bump (unchanged)
+        
         heston_params = np.array([v0, kappa, theta, xi, rho])
         local_vol_func = compute_dupire_local_vol(ref_spot_ui)
         L_func = st.session_state.L_func if mode == "LSV" else None
 
+        # ====================== BASE PRICE ======================
         base_raw = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier, mode,
                                    heston_params, local_vol_func=local_vol_func, L_func=L_func,
-                                   n_paths=150000, n_steps=350, seed=42)
+                                   n_paths=mc_paths, n_steps=mc_steps, seed=seed)
         base_pct = (base_raw / ref_spot_ui) * 100
 
         st.success(f"**Option Price: {base_pct:.4f}%** of notional")
         st.info(f"✅ Computed in {time.time() - start:.2f} s")
 
-        # ====================== GREEKS (FIXED FOR PUTS - POINT 1) ======================
-        # Use absolute raw prices + more paths + smaller bump + common random seed logic
-        seed = 42
-        n_greeks = 150000
-        h = 0.005
-
-        # =========
-        # Use THE SAME seed for base + all bumps.
-        # This makes the Monte Carlo paths identical except for the intentional bump.
-        # Finite-difference Greeks become stable
-
+        # ====================== GREEKS (now fully consistent CRN) ======================
+        # Use THE SAME mc_paths, mc_steps and seed for base + all bumps
         raw_base = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier,
                                    mode, heston_params, local_vol_func=local_vol_func,
-                                   L_func=L_func, n_paths=n_greeks, seed=seed)
-        base_pct = (raw_base / ref_spot_ui) * 100
+                                   L_func=L_func, n_paths=mc_paths, n_steps=mc_steps, seed=seed)
 
         raw_up = price_option_mc(ref_spot_ui * (1 + h), T, K, B, barrier_type, is_call, is_barrier,
                                  mode, heston_params, local_vol_func=local_vol_func,
-                                 L_func=L_func, n_paths=n_greeks, seed=seed)  # ← same seed
+                                 L_func=L_func, n_paths=mc_paths, n_steps=mc_steps, seed=seed)
 
         raw_down = price_option_mc(ref_spot_ui * (1 - h), T, K, B, barrier_type, is_call, is_barrier,
                                    mode, heston_params, local_vol_func=local_vol_func,
-                                   L_func=L_func, n_paths=n_greeks, seed=seed)  # ← same seed
+                                   L_func=L_func, n_paths=mc_paths, n_steps=mc_steps, seed=seed)
 
-        pct_up = (raw_up / ref_spot_ui) * 100
+        pct_up   = (raw_up   / ref_spot_ui) * 100
         pct_down = (raw_down / ref_spot_ui) * 100
 
-        # Your original formulas are already correct for "% notional" convention
         delta = (pct_up - pct_down) / (2 * h)
         gamma = (pct_up - 2 * base_pct + pct_down) / (h ** 2) / 100
 
-        # Vega (same seed again)
+        # Vega (same settings)
         bumped_vol = vol_matrix + 0.02
         raw_vega = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier,
                                    mode, heston_params,
                                    local_vol_func=None, L_func=None, vol_mat=bumped_vol,
-                                   n_paths=n_greeks, seed=seed)  # ← same seed
+                                   n_paths=mc_paths, n_steps=mc_steps, seed=seed)
 
         pct_vega = (raw_vega / ref_spot_ui) * 100
         vega = (pct_vega - base_pct) / 2.0
