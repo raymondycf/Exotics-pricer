@@ -622,33 +622,34 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
     with st.spinner("Running Monte Carlo paths..."):
         start = time.time()
         
-        # ====================== CONSISTENT MC SETTINGS ======================
-        mc_paths = 150000          # ← you can increase to 200000 if you want even tighter Greeks
-        mc_steps = 320             # ← balanced speed/stability on your CPU
-        seed     = 42
-        h        = 0.01            # ← restored your original value
-        
+        pricing_paths = 120000
+        greeks_paths  = 300000     # higher paths → stable Gamma + Vega
+        mc_steps = 320
+        seed = 42
+        h = 0.01                   # spot bump for Delta/Gamma
+        vol_bump = 0.01            # 1 vol point bump for Vega (clean & correct)
+
         heston_params = np.array([v0, kappa, theta, xi, rho])
         local_vol_func = compute_dupire_local_vol(ref_spot_ui)
         L_func = st.session_state.L_func if mode == "LSV" else None
 
-        # ====================== BASE PRICE ======================
+        # BASE PRICE
         base_raw = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier, mode,
                                    heston_params, local_vol_func=local_vol_func, L_func=L_func,
-                                   n_paths=mc_paths, n_steps=mc_steps, seed=seed)
+                                   n_paths=pricing_paths, n_steps=mc_steps, seed=seed)
         base_pct = (base_raw / ref_spot_ui) * 100
 
         st.success(f"**Option Price: {base_pct:.4f}%** of notional")
         st.info(f"✅ Computed in {time.time() - start:.2f} s")
 
-        # ====================== GREEKS (restored your original logic + consistent paths/steps) ======================
-        raw_up = price_option_mc(ref_spot_ui * (1 + h), T, K, B, barrier_type, is_call, is_barrier,
-                                 mode, heston_params, local_vol_func=local_vol_func,
-                                 L_func=L_func, n_paths=mc_paths, n_steps=mc_steps, seed=seed)
+        # GREEKS (stable + correct methodology)
+        raw_up   = price_option_mc(ref_spot_ui * (1 + h), T, K, B, barrier_type, is_call, is_barrier,
+                                   mode, heston_params, local_vol_func=local_vol_func, L_func=L_func,
+                                   n_paths=greeks_paths, n_steps=mc_steps, seed=seed)
 
         raw_down = price_option_mc(ref_spot_ui * (1 - h), T, K, B, barrier_type, is_call, is_barrier,
-                                   mode, heston_params, local_vol_func=local_vol_func,
-                                   L_func=L_func, n_paths=mc_paths, n_steps=mc_steps, seed=seed + 1)
+                                   mode, heston_params, local_vol_func=local_vol_func, L_func=L_func,
+                                   n_paths=greeks_paths, n_steps=mc_steps, seed=seed)
 
         pct_up   = (raw_up   / ref_spot_ui) * 100
         pct_down = (raw_down / ref_spot_ui) * 100
@@ -656,15 +657,15 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
         delta = (pct_up - pct_down) / (2 * h)
         gamma = (pct_up - 2 * base_pct + pct_down) / (h ** 2) / 100
 
-        # Vega
-        bumped_vol = vol_matrix + 0.02
+        # VEGA — correct finite-difference (parallel shift of implied vol surface)
+        bumped_vol = vol_matrix + vol_bump
         raw_vega = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier,
                                    mode, heston_params,
                                    local_vol_func=None, L_func=None, vol_mat=bumped_vol,
-                                   n_paths=mc_paths, n_steps=mc_steps, seed=seed + 2)
+                                   n_paths=greeks_paths, n_steps=mc_steps, seed=seed)
 
         pct_vega = (raw_vega / ref_spot_ui) * 100
-        vega = (pct_vega - base_pct) / 2.0
+        vega = (pct_vega - base_pct) / vol_bump          # ← now per 1 vol point (correct)
 
         col1, col2, col3 = st.columns(3)
         col1.metric("Delta (% notional)", f"{delta:.2f}")
