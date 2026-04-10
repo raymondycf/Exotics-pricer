@@ -617,17 +617,16 @@ else:
 
 mode_label = st.sidebar.radio("Model Mode", ["LV (Local Vol only)", "LSV (Local + Stochastic Vol)"])
 mode = "LV" if "LV" in mode_label else "LSV"
-
 st.markdown("### Click to Price the Option")
 if st.button("PRICE NOW", type="primary", use_container_width=True):
     with st.spinner("Running Monte Carlo paths..."):
         start = time.time()
         
-        # ====================== CONSISTENT MC SETTINGS FOR PRICE + GREEKS ======================
-        mc_paths = 100000          # <── you can change this later
-        mc_steps = 320             # <── balanced for speed & stability on your CPU
+        # ====================== CONSISTENT MC SETTINGS ======================
+        mc_paths = 150000          # ← you can increase to 200000 if you want even tighter Greeks
+        mc_steps = 320             # ← balanced speed/stability on your CPU
         seed     = 42
-        h        = 0.005           # 0.5% spot bump (unchanged)
+        h        = 0.01            # ← restored your original value
         
         heston_params = np.array([v0, kappa, theta, xi, rho])
         local_vol_func = compute_dupire_local_vol(ref_spot_ui)
@@ -642,19 +641,14 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
         st.success(f"**Option Price: {base_pct:.4f}%** of notional")
         st.info(f"✅ Computed in {time.time() - start:.2f} s")
 
-        # ====================== GREEKS (now fully consistent CRN) ======================
-        # Use THE SAME mc_paths, mc_steps and seed for base + all bumps
-        raw_base = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier,
-                                   mode, heston_params, local_vol_func=local_vol_func,
-                                   L_func=L_func, n_paths=mc_paths, n_steps=mc_steps, seed=seed)
-
+        # ====================== GREEKS (restored your original logic + consistent paths/steps) ======================
         raw_up = price_option_mc(ref_spot_ui * (1 + h), T, K, B, barrier_type, is_call, is_barrier,
                                  mode, heston_params, local_vol_func=local_vol_func,
                                  L_func=L_func, n_paths=mc_paths, n_steps=mc_steps, seed=seed)
 
         raw_down = price_option_mc(ref_spot_ui * (1 - h), T, K, B, barrier_type, is_call, is_barrier,
                                    mode, heston_params, local_vol_func=local_vol_func,
-                                   L_func=L_func, n_paths=mc_paths, n_steps=mc_steps, seed=seed)
+                                   L_func=L_func, n_paths=mc_paths, n_steps=mc_steps, seed=seed + 1)
 
         pct_up   = (raw_up   / ref_spot_ui) * 100
         pct_down = (raw_down / ref_spot_ui) * 100
@@ -662,12 +656,12 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
         delta = (pct_up - pct_down) / (2 * h)
         gamma = (pct_up - 2 * base_pct + pct_down) / (h ** 2) / 100
 
-        # Vega (same settings)
+        # Vega
         bumped_vol = vol_matrix + 0.02
         raw_vega = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier,
                                    mode, heston_params,
                                    local_vol_func=None, L_func=None, vol_mat=bumped_vol,
-                                   n_paths=mc_paths, n_steps=mc_steps, seed=seed)
+                                   n_paths=mc_paths, n_steps=mc_steps, seed=seed + 2)
 
         pct_vega = (raw_vega / ref_spot_ui) * 100
         vega = (pct_vega - base_pct) / 2.0
@@ -676,6 +670,7 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
         col1.metric("Delta (% notional)", f"{delta:.2f}")
         col2.metric("Gamma (% notional)", f"{gamma:.4f}")
         col3.metric("Vega (% notional)", f"{vega:.2f}")
+
 
 # ====================== HIGHCHARTS BUTTON ======================
 st.markdown("---")
