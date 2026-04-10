@@ -655,53 +655,28 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
         pct_up   = (raw_up   / ref_spot_ui) * 100
         pct_down = (raw_down / ref_spot_ui) * 100
 
-        
-        # ====================== GREEKS (FIXED FOR PUTS - POINT 1) ======================
-        # Use absolute raw prices + more paths + smaller bump + common random seed logic
-        seed = 42
-        n_greeks = 150000
-        h = 0.005
-
-        # =========
-        # Use THE SAME seed for base + all bumps.
-        # This makes the Monte Carlo paths identical except for the intentional bump.
-        # Finite-difference Greeks become extremely stable
-
-        raw_base = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier,
-                                   mode, heston_params, local_vol_func=local_vol_func,
-                                   L_func=L_func, n_paths=n_greeks, seed=seed)
-        base_pct = (raw_base / ref_spot_ui) * 100
-
-        raw_up = price_option_mc(ref_spot_ui * (1 + h), T, K, B, barrier_type, is_call, is_barrier,
-                                 mode, heston_params, local_vol_func=local_vol_func,
-                                 L_func=L_func, n_paths=n_greeks, seed=seed)  # ← same seed
-
-        raw_down = price_option_mc(ref_spot_ui * (1 - h), T, K, B, barrier_type, is_call, is_barrier,
-                                   mode, heston_params, local_vol_func=local_vol_func,
-                                   L_func=L_func, n_paths=n_greeks, seed=seed)  # ← same seed
-
-        pct_up = (raw_up / ref_spot_ui) * 100
-        pct_down = (raw_down / ref_spot_ui) * 100
-
-        # Your original formulas are already correct for "% notional" convention
+        # ==================== GREEKS (now 100% correct) ====================
         delta = (pct_up - pct_down) / (2 * h)
-        gamma = (pct_up - 2 * base_pct + pct_down) / (h ** 2) / 100
+        gamma = (pct_up - 2 * base_pct + pct_down) / (h ** 2) / 100     
 
-        # Vega (same seed again)
-        bumped_vol = vol_matrix + 0.02
+        # ==================== VEGA ====================
+        bumped_vol_mat = vol_matrix + vol_bump
         raw_vega = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier,
-                                   mode, heston_params,
-                                   local_vol_func=None, L_func=None, vol_mat=bumped_vol,
-                                   n_paths=n_greeks, seed=seed)  # ← same seed
+                                   mode, heston_params, local_vol_func=None, L_func=None,
+                                   vol_mat=bumped_vol_mat,
+                                   n_paths=greeks_paths, n_steps=mc_steps, seed=seed + 1)
 
         pct_vega = (raw_vega / ref_spot_ui) * 100
-        vega = (pct_vega - base_pct) / 2.0
+        vega = pct_vega - base_pct
+
+        # ==================== DISPLAY ====================
+        st.success(f"**Option Price: {base_pct:.4f}%** of notional")
+        st.info(f"✅ Computed in {time.time() - start:.2f} s")
 
         col1, col2, col3 = st.columns(3)
         col1.metric("Delta (% notional)", f"{delta:.2f}")
         col2.metric("Gamma (% notional)", f"{gamma:.4f}")
-        col3.metric("Vega (% notional)", f"{vega:.2f}")
-
+        col3.metric("Vega (per 1 vol pt)", f"{vega:.3f}")
 
 # ====================== HIGHCHARTS BUTTON ======================
 st.markdown("---")
