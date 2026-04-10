@@ -655,11 +655,12 @@ if st.button("PRICE NOW", type="primary", use_container_width=True):
         pct_up   = (raw_up   / ref_spot_ui) * 100
         pct_down = (raw_down / ref_spot_ui) * 100
 
-        # ==================== GREEKS (now 100% correct) ====================
+        
+        # ==================== GREEKS  ====================
         delta = (pct_up - pct_down) / (2 * h)
-        gamma = (pct_up - 2 * base_pct + pct_down) / (h ** 2) / 100     
+        gamma = (pct_up - 2 * base_pct + pct_down) / (h ** 2) / 100
 
-        # ==================== VEGA ====================
+        # ==================== VEGA (unchanged) ====================
         bumped_vol_mat = vol_matrix + vol_bump
         raw_vega = price_option_mc(ref_spot_ui, T, K, B, barrier_type, is_call, is_barrier,
                                    mode, heston_params, local_vol_func=None, L_func=None,
